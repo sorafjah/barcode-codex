@@ -6,11 +6,10 @@
   <title>100均レジ</title>
   <style>
     :root {
-      --bg: #f3fbff;
       --card: #ffffff;
       --text: #20455c;
-      --accent: #4aa3df;
-      --ok: #26a269;
+      --accent-strong: #ef7b66;
+      --ok-soft: #8bc9a5;
       --warn: #ef7b66;
       --shadow: 0 10px 24px rgba(32, 69, 92, 0.14);
     }
@@ -26,7 +25,7 @@
     }
 
     .app {
-      width: min(100%, 800px);
+      width: min(100%, 900px);
       margin: 0 auto;
       padding: 16px;
       display: grid;
@@ -38,29 +37,35 @@
       border-radius: 16px;
       box-shadow: var(--shadow);
       padding: 16px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .summary-box {
+      background: #f6fcff;
+      border: 2px solid #d6eefc;
+      border-radius: 14px;
+      padding: 10px;
       text-align: center;
     }
 
     .label {
-      font-size: clamp(1rem, 3.8vw, 1.5rem);
+      font-size: clamp(1rem, 3.8vw, 1.4rem);
       font-weight: 700;
       margin: 0;
       opacity: .8;
     }
 
     .value {
-      margin: 4px 0 10px;
-      font-size: clamp(2rem, 10vw, 4.4rem);
+      margin: 4px 0 0;
+      font-size: clamp(2rem, 8vw, 3.6rem);
       font-weight: 900;
       line-height: 1.1;
       letter-spacing: 1px;
-    }
-
-    .product {
-      margin: 0;
-      font-size: clamp(1.1rem, 4.4vw, 1.8rem);
-      font-weight: 700;
-      color: #1d7fbf;
     }
 
     #reader {
@@ -90,13 +95,13 @@
     }
 
     button:disabled {
-      opacity: .6;
+      opacity: .65;
       cursor: not-allowed;
     }
 
-    #startBtn { background: var(--accent); }
+    #startBtn { background: var(--accent-strong); }
     #payBtn { background: var(--warn); }
-    #nextBtn { background: var(--ok); }
+    #nextBtn { background: var(--ok-soft); }
 
     #status {
       margin: 0;
@@ -140,27 +145,31 @@
     .bill-actions button {
       font-size: clamp(1.3rem, 5vw, 2rem);
       padding: 16px 12px;
+      background: #26a269;
     }
-
-    #overlayNextBtn { background: var(--ok); }
   </style>
 </head>
 <body>
   <main class="app">
     <section class="top">
-      <p class="label">合計金額</p>
-      <p id="totalView" class="value">0円</p>
-      <p class="label">スキャンした個数</p>
-      <p id="countView" class="value">0個</p>
-      <p class="product">商品名：100円ショップの商品</p>
+      <div class="summary">
+        <div class="summary-box">
+          <p class="label">合計金額</p>
+          <p id="totalView" class="value">0円</p>
+        </div>
+        <div class="summary-box">
+          <p class="label">スキャンした個数</p>
+          <p id="countView" class="value">0個</p>
+        </div>
+      </div>
     </section>
 
     <div id="reader"></div>
 
-    <p id="status">「レジをはじめる」を押してください</p>
+    <p id="status">「レジを始める」を押してください</p>
 
     <section class="actions">
-      <button id="startBtn">レジをはじめる</button>
+      <button id="startBtn">レジを始める</button>
       <button id="payBtn" disabled>お支払い</button>
       <button id="nextBtn" disabled>つぎの人（リセット）</button>
     </section>
@@ -170,7 +179,7 @@
     <div class="bill">
       <div id="billText">合計 0円</div>
       <div class="bill-actions">
-        <button id="overlayNextBtn">つぎの人へ</button>
+        <button id="overlayNextBtn">ありがとうございました</button>
       </div>
     </div>
   </div>
@@ -305,7 +314,6 @@
       billOverlay.classList.remove("show");
       await stopScanner();
       await startScanner();
-      statusView.textContent = "次の人のスキャンをどうぞ";
     }
 
     startBtn.addEventListener("click", async () => {
