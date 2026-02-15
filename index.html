@@ -130,6 +130,19 @@
       color: #b14130;
       line-height: 1.2;
     }
+
+    .bill-actions {
+      margin-top: 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .bill-actions button {
+      font-size: clamp(1.3rem, 5vw, 2rem);
+      padding: 16px 12px;
+    }
+
+    #overlayNextBtn { background: var(--ok); }
   </style>
 </head>
 <body>
@@ -154,7 +167,12 @@
   </main>
 
   <div id="billOverlay" class="overlay" aria-live="assertive">
-    <div id="billText" class="bill">合計 0円</div>
+    <div class="bill">
+      <div id="billText">合計 0円</div>
+      <div class="bill-actions">
+        <button id="overlayNextBtn">つぎの人へ</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://unpkg.com/html5-qrcode" defer></script>
@@ -176,6 +194,7 @@
     const startBtn = document.getElementById("startBtn");
     const payBtn = document.getElementById("payBtn");
     const nextBtn = document.getElementById("nextBtn");
+    const overlayNextBtn = document.getElementById("overlayNextBtn");
     const billOverlay = document.getElementById("billOverlay");
     const billText = document.getElementById("billText");
 
@@ -277,6 +296,18 @@
       isScanning = false;
     }
 
+    async function resetForNextPerson() {
+      total = 0;
+      count = 0;
+      lastScanText = "";
+      lastScanAt = 0;
+      updateViews();
+      billOverlay.classList.remove("show");
+      await stopScanner();
+      await startScanner();
+      statusView.textContent = "次の人のスキャンをどうぞ";
+    }
+
     startBtn.addEventListener("click", async () => {
       ensureAudioContext();
       if (window.speechSynthesis) {
@@ -295,15 +326,11 @@
     });
 
     nextBtn.addEventListener("click", async () => {
-      total = 0;
-      count = 0;
-      lastScanText = "";
-      lastScanAt = 0;
-      updateViews();
-      billOverlay.classList.remove("show");
-      await stopScanner();
-      await startScanner();
-      statusView.textContent = "次の人のスキャンをどうぞ";
+      await resetForNextPerson();
+    });
+
+    overlayNextBtn.addEventListener("click", async () => {
+      await resetForNextPerson();
     });
 
     updateViews();
