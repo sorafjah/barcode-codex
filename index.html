@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>100均レジ</title>
+  <style>
+    :root {
+      --bg: #f3fbff;
+      --card: #ffffff;
+      --text: #20455c;
+      --accent: #4aa3df;
+      --ok: #26a269;
+      --warn: #ef7b66;
+      --shadow: 0 10px 24px rgba(32, 69, 92, 0.14);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", sans-serif;
+      background: linear-gradient(180deg, #eff9ff 0%, #f7fff7 100%);
+      color: var(--text);
+      min-height: 100dvh;
+    }
+
+    .app {
+      width: min(100%, 800px);
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .top {
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .label {
+      font-size: clamp(1rem, 3.8vw, 1.5rem);
+      font-weight: 700;
+      margin: 0;
+      opacity: .8;
+    }
+
+    .value {
+      margin: 4px 0 10px;
+      font-size: clamp(2rem, 10vw, 4.4rem);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: 1px;
+    }
+
+    .product {
+      margin: 0;
+      font-size: clamp(1.1rem, 4.4vw, 1.8rem);
+      font-weight: 700;
+      color: #1d7fbf;
+    }
+
+    #reader {
+      width: 100%;
+      background: #dff3ff;
+      border: 3px dashed #8bc9f1;
+      border-radius: 16px;
+      min-height: 240px;
+      overflow: hidden;
+    }
+
+    .actions {
+      display: grid;
+      gap: 12px;
+    }
+
+    button {
+      width: 100%;
+      border: none;
+      border-radius: 14px;
+      padding: 18px 12px;
+      font-size: clamp(1.3rem, 5vw, 2rem);
+      font-weight: 800;
+      color: #fff;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+
+    #startBtn { background: var(--accent); }
+    #payBtn { background: var(--warn); }
+    #nextBtn { background: var(--ok); }
+
+    #status {
+      margin: 0;
+      text-align: center;
+      font-size: clamp(1rem, 3.8vw, 1.2rem);
+      font-weight: 700;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(19, 39, 52, .64);
+      display: none;
+      place-items: center;
+      z-index: 100;
+      padding: 20px;
+    }
+
+    .overlay.show { display: grid; }
+
+    .bill {
+      width: min(95vw, 680px);
+      background: #fff7f5;
+      border: 4px solid #ffd2c7;
+      border-radius: 20px;
+      text-align: center;
+      padding: 30px 20px;
+      box-shadow: var(--shadow);
+      font-size: clamp(2rem, 11vw, 5.4rem);
+      font-weight: 900;
+      color: #b14130;
+      line-height: 1.2;
+    }
+
+    .bill-actions {
+      margin-top: 18px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .bill-actions button {
+      font-size: clamp(1.3rem, 5vw, 2rem);
+      padding: 16px 12px;
+    }
+
+    #overlayNextBtn { background: var(--ok); }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="top">
+      <p class="label">合計金額</p>
+      <p id="totalView" class="value">0円</p>
+      <p class="label">スキャンした個数</p>
+      <p id="countView" class="value">0個</p>
+      <p class="product">商品名：100円ショップの商品</p>
+    </section>
+
+    <div id="reader"></div>
+
+    <p id="status">「レジをはじめる」を押してください</p>
+
+    <section class="actions">
+      <button id="startBtn">レジをはじめる</button>
+      <button id="payBtn" disabled>お支払い</button>
+      <button id="nextBtn" disabled>つぎの人（リセット）</button>
+    </section>
+  </main>
+
+  <div id="billOverlay" class="overlay" aria-live="assertive">
+    <div class="bill">
+      <div id="billText">合計 0円</div>
+      <div class="bill-actions">
+        <button id="overlayNextBtn">つぎの人へ</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode" defer></script>
+  <script>
+    const UNIT_PRICE = 110;
+    const READER_ID = "reader";
+
+    let total = 0;
+    let count = 0;
+    let scanner = null;
+    let isScanning = false;
+    let audioCtx = null;
+    let lastScanText = "";
+    let lastScanAt = 0;
+
+    const totalView = document.getElementById("totalView");
+    const countView = document.getElementById("countView");
+    const statusView = document.getElementById("status");
+    const startBtn = document.getElementById("startBtn");
+    const payBtn = document.getElementById("payBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const overlayNextBtn = document.getElementById("overlayNextBtn");
+    const billOverlay = document.getElementById("billOverlay");
+    const billText = document.getElementById("billText");
+
+    function updateViews() {
+      totalView.textContent = `${total}円`;
+      countView.textContent = `${count}個`;
+      billText.textContent = `合計 ${total}円`;
+    }
+
+    function ensureAudioContext() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    }
+
+    function beep() {
+      ensureAudioContext();
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(1800, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.2, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.15);
+    }
+
+    function speakPrice() {
+      const speech = window.speechSynthesis;
+      if (!speech) return;
+      speech.cancel();
+      const utter = new SpeechSynthesisUtterance("ひゃくじゅうえん");
+      utter.lang = "ja-JP";
+      utter.rate = 1;
+      utter.pitch = 1;
+      speech.speak(utter);
+    }
+
+    function onScanSuccess(decodedText) {
+      const now = Date.now();
+      if (decodedText === lastScanText && now - lastScanAt < 1200) {
+        return;
+      }
+      lastScanText = decodedText;
+      lastScanAt = now;
+
+      total += UNIT_PRICE;
+      count += 1;
+      updateViews();
+      statusView.textContent = "読み取り成功！";
+      beep();
+      setTimeout(speakPrice, 120);
+    }
+
+    async function startScanner() {
+      if (isScanning) return;
+      if (!window.Html5Qrcode) {
+        statusView.textContent = "読み取りライブラリの読み込み中です。少し待ってください。";
+        return;
+      }
+      if (!scanner) scanner = new Html5Qrcode(READER_ID);
+
+      const cameraConfig = {
+        fps: 12,
+        qrbox: { width: 240, height: 160 },
+        aspectRatio: 1.777,
+        rememberLastUsedCamera: true
+      };
+
+      try {
+        await scanner.start(
+          { facingMode: "environment" },
+          cameraConfig,
+          onScanSuccess,
+          () => {}
+        );
+        isScanning = true;
+        payBtn.disabled = false;
+        nextBtn.disabled = false;
+        startBtn.disabled = true;
+        statusView.textContent = "カメラ起動中：バーコードを読み取ってください";
+      } catch (err) {
+        statusView.textContent = "カメラを開始できませんでした。カメラ権限を確認してください。";
+        console.error(err);
+      }
+    }
+
+    async function stopScanner() {
+      if (!scanner || !isScanning) return;
+      try {
+        await scanner.stop();
+        await scanner.clear();
+      } catch (err) {
+        console.warn("scanner stop failed", err);
+      }
+      scanner = null;
+      isScanning = false;
+    }
+
+    async function resetForNextPerson() {
+      total = 0;
+      count = 0;
+      lastScanText = "";
+      lastScanAt = 0;
+      updateViews();
+      billOverlay.classList.remove("show");
+      await stopScanner();
+      await startScanner();
+      statusView.textContent = "次の人のスキャンをどうぞ";
+    }
+
+    startBtn.addEventListener("click", async () => {
+      ensureAudioContext();
+      if (window.speechSynthesis) {
+        window.speechSynthesis.getVoices();
+      }
+      billOverlay.classList.remove("show");
+      await startScanner();
+    });
+
+    payBtn.addEventListener("click", async () => {
+      await stopScanner();
+      billOverlay.classList.add("show");
+      startBtn.disabled = false;
+      payBtn.disabled = true;
+      statusView.textContent = "お会計中です";
+    });
+
+    nextBtn.addEventListener("click", async () => {
+      await resetForNextPerson();
+    });
+
+    overlayNextBtn.addEventListener("click", async () => {
+      await resetForNextPerson();
+    });
+
+    updateViews();
+  </script>
+</body>
+</html>
